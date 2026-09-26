@@ -28,14 +28,12 @@ class SGD(Optimizer):
             self.state['m'] = [np.zeros_like(param) for param in parameters]
 
         for param, grad, m in zip(parameters, gradients, self.state['m']):
-            """
-            your code here ｀、ヽ｀、ヽ(ノ＞＜)ノ ヽ｀☂｀、ヽ
-              - update momentum variable (m)
-              - update parameter variable (param)
-            hint: consider using np.add(..., out=m) for in place addition,
-              i.e. we need to change original array, not its copy
-            """
-            pass
+            update = grad + self.weight_decay * param
+            if self.momentum:
+                m *= self.momentum
+                m += update
+                update = update + self.momentum * m if self.nesterov else m
+            param -= self.lr * update
 
 
 class Adam(Optimizer):
@@ -70,12 +68,11 @@ class Adam(Optimizer):
         self.state['t'] += 1
         t = self.state['t']
         for param, grad, m, v in zip(parameters, gradients, self.state['m'], self.state['v']):
-            """
-            your code here ｀、ヽ｀、ヽ(ノ＞＜)ノ ヽ｀☂｀、ヽ
-              - update first moment variable (m)
-              - update second moment variable (v)
-              - update parameter variable (param)
-            hint: consider using np.add(..., out=m) for in place addition,
-              i.e. we need to change original array, not its copy
-            """
-            pass
+            update = grad + self.weight_decay * param
+            m *= self.beta1
+            m += (1 - self.beta1) * update
+            v *= self.beta2
+            v += (1 - self.beta2) * update ** 2
+            step_size = self.lr / (1 - self.beta1 ** t)
+            denom = np.sqrt(v) / np.sqrt(1 - self.beta2 ** t) + self.eps
+            param -= step_size * m / denom
