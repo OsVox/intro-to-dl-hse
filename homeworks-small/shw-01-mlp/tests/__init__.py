@@ -6,4 +6,3 @@ from .test_sequential import test_sequential
 from .test_criterions import test_criterions
 from .test_optimizers import test_optimizers
 from .test_dataloader import test_dataloader
-from .test_low_rank_linear import test_low_rank_linear
