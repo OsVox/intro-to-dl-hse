@@ -27,8 +27,10 @@ class Linear(Module):
         :param input: array of shape (batch_size, in_features)
         :return: array of shape (batch_size, out_features)
         """
-        # replace with your code ｀、ヽ｀、ヽ(ノ＞＜)ノ ヽ｀☂｀、ヽ
-        return super().compute_output(input)
+        output = input @ self.weight.T
+        if self.bias is not None:
+            output += self.bias
+        return output
 
     def compute_grad_input(self, input: np.ndarray, grad_output: np.ndarray) -> np.ndarray:
         """
@@ -36,16 +38,16 @@ class Linear(Module):
         :param grad_output: array of shape (batch_size, out_features)
         :return: array of shape (batch_size, in_features)
         """
-        # replace with your code ｀、ヽ｀、ヽ(ノ＞＜)ノ ヽ｀☂｀、ヽ
-        return super().compute_grad_input(input, grad_output)
+        return grad_output @ self.weight
 
     def update_grad_parameters(self, input: np.ndarray, grad_output: np.ndarray):
         """
         :param input: array of shape (batch_size, in_features)
         :param grad_output: array of shape (batch_size, out_features)
         """
-        # replace with your code ｀、ヽ｀、ヽ(ノ＞＜)ノ ヽ｀☂｀、ヽ
-        super().update_grad_parameters(input, grad_output)
+        self.grad_weight += grad_output.T @ input
+        if self.bias is not None:
+            self.grad_bias += grad_output.sum(axis=0)
 
     def zero_grad(self):
         self.grad_weight.fill(0)
