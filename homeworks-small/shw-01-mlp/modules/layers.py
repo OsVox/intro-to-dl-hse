@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List
+from typing import List, Optional
 from .base import Module
 
 
@@ -260,3 +260,64 @@ class Sequential(Module):
             repr_str += ' ' * 4 + repr(module) + '\n'
         repr_str += ')'
         return repr_str
+
+
+class LowRankLinear(Module):
+    """Affine layer with weight = left_weight @ right_weight."""
+
+    def __init__(self, in_features: int, out_features: int, max_rank: Optional[int] = None,
+                 bias: bool = True):
+        super().__init__()
+        if in_features < 1 or out_features < 1:
+            raise ValueError('feature dimensions must be positive')
+        if max_rank is not None and (isinstance(max_rank, bool) or
+                                     not isinstance(max_rank, (int, np.integer)) or max_rank < 1):
+            raise ValueError('max_rank must be a positive integer or None')
+
+        self.in_features = in_features
+        self.out_features = out_features
+        self.max_rank = max_rank
+        self.rank = min(in_features, out_features) if max_rank is None else min(max_rank, in_features, out_features)
+        self.right_weight = np.random.uniform(-1, 1, (self.rank, in_features)) / np.sqrt(in_features)
+        self.left_weight = np.random.uniform(-1, 1, (out_features, self.rank)) / np.sqrt(self.rank)
+        self.bias = np.random.uniform(-1, 1, out_features) / np.sqrt(in_features) if bias else None
+        self.grad_right_weight = np.zeros_like(self.right_weight)
+        self.grad_left_weight = np.zeros_like(self.left_weight)
+        self.grad_bias = np.zeros_like(self.bias) if bias else None
+        self.hidden = None
+
+    @property
+    def weight(self) -> np.ndarray:
+        return self.left_weight @ self.right_weight
+
+    def compute_output(self, input: np.ndarray) -> np.ndarray:
+        self.hidden = input @ self.right_weight.T
+        output = self.hidden @ self.left_weight.T
+        if self.bias is not None:
+            output += self.bias
+        return output
+
+    def compute_grad_input(self, input: np.ndarray, grad_output: np.ndarray) -> np.ndarray:
+        return (grad_output @ self.left_weight) @ self.right_weight
+
+    def update_grad_parameters(self, input: np.ndarray, grad_output: np.ndarray):
+        self.grad_left_weight += grad_output.T @ self.hidden
+        self.grad_right_weight += (grad_output @ self.left_weight).T @ input
+        if self.bias is not None:
+            self.grad_bias += grad_output.sum(axis=0)
+
+    def zero_grad(self):
+        self.grad_right_weight.fill(0)
+        self.grad_left_weight.fill(0)
+        if self.bias is not None:
+            self.grad_bias.fill(0)
+
+    def parameters(self) -> List[np.ndarray]:
+        return [self.right_weight, self.left_weight] + ([self.bias] if self.bias is not None else [])
+
+    def parameters_grad(self) -> List[np.ndarray]:
+        return [self.grad_right_weight, self.grad_left_weight] + ([self.grad_bias] if self.bias is not None else [])
+
+    def __repr__(self) -> str:
+        return (f'LowRankLinear(in_features={self.in_features}, out_features={self.out_features}, '
+                f'max_rank={self.max_rank}, bias={self.bias is not None})')
