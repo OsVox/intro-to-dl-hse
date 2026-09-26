@@ -1,5 +1,5 @@
 import numpy as np
-from typing import List
+from typing import List, Optional
 from .base import Module
 
 
@@ -227,3 +227,50 @@ class Sequential(Module):
             repr_str += ' ' * 4 + repr(module) + '\n'
         repr_str += ')'
         return repr_str
+
+
+class LowRankLinear(Module):
+    """Linear layer with weight rank at most max_rank."""
+
+    def __init__(self, in_features: int, out_features: int, max_rank: Optional[int] = None,
+                 bias: bool = True):
+        super().__init__()
+        rank = min(in_features, out_features) if max_rank is None else min(max_rank, in_features, out_features)
+        if rank < 1:
+            raise ValueError('rank must be positive')
+        self.rank = rank
+        self.right_weight = np.random.uniform(-1, 1, (rank, in_features)) / np.sqrt(in_features)
+        self.left_weight = np.random.uniform(-1, 1, (out_features, rank)) / np.sqrt(rank)
+        self.bias = np.random.uniform(-1, 1, out_features) / np.sqrt(in_features) if bias else None
+        self.grad_right_weight = np.zeros_like(self.right_weight)
+        self.grad_left_weight = np.zeros_like(self.left_weight)
+        self.grad_bias = np.zeros_like(self.bias) if bias else None
+
+    @property
+    def weight(self) -> np.ndarray:
+        return self.left_weight @ self.right_weight
+
+    def compute_output(self, input: np.ndarray) -> np.ndarray:
+        output = (input @ self.right_weight.T) @ self.left_weight.T
+        if self.bias is not None:
+            output += self.bias
+        return output
+
+    def compute_grad_input(self, input: np.ndarray, grad_output: np.ndarray) -> np.ndarray:
+        return (grad_output @ self.left_weight) @ self.right_weight
+
+    def update_grad_parameters(self, input: np.ndarray, grad_output: np.ndarray):
+        self.grad_left_weight += grad_output.T @ (input @ self.right_weight.T)
+        self.grad_right_weight += (grad_output @ self.left_weight).T @ input
+        if self.bias is not None:
+            self.grad_bias += grad_output.sum(axis=0)
+
+    def zero_grad(self):
+        for grad in self.parameters_grad():
+            grad.fill(0)
+
+    def parameters(self) -> List[np.ndarray]:
+        return [self.right_weight, self.left_weight] + ([self.bias] if self.bias is not None else [])
+
+    def parameters_grad(self) -> List[np.ndarray]:
+        return [self.grad_right_weight, self.grad_left_weight] + ([self.grad_bias] if self.bias is not None else [])
