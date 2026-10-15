@@ -6,3 +6,8 @@ PokemonData/
 README-old.md
 *.pt
 *.pyc
+
+# HW2: local datasets and experiment outputs
+hw2-results/
+/homeworks-small/data/
+/data/
